@@ -1,0 +1,5 @@
+{
+  "name": "Suivi Universitaire RDC",
+  "description": "Un système institutionnel de suivi des candidatures universitaires en République Démocratique du Congo, avec export Excel et dashboard interactif.",
+  "requestFramePermissions": []
+}
