@@ -52,6 +52,9 @@ const App: React.FC = () => {
       reponses: universites.filter(item => ["Positive", "Négative"].includes(item.reponse)).length
     });
     localStorage.setItem(STORAGE_KEY, JSON.stringify(universites));
+    
+    // Synchroniser automatiquement avec Firebase
+    syncUniversitesToFirebase(universites);
   }, [universites]);
 
   useEffect(() => {
@@ -62,53 +65,81 @@ const App: React.FC = () => {
       reponses: ecoles.filter(item => ["Positive", "Négative"].includes(item.reponse)).length
     });
     localStorage.setItem(STORAGE_KEY_ECOLES, JSON.stringify(ecoles));
+    
+    // Synchroniser automatiquement avec Firebase
+    syncEcolesToFirebase(ecoles);
   }, [ecoles]);
 
   // Écouter Firebase pour universités
   useEffect(() => {
     const univRef = collection(db, 'universites');
     const unsubscribe = onSnapshot(univRef, (snapshot) => {
-      if (!snapshot.empty) {
-        const cloudData: Universite[] = snapshot.docs.map(doc => ({
-          id: doc.data().id,
-          nom: doc.data().nom,
-          ville: doc.data().ville,
-          statut: doc.data().statut,
-          reponse: doc.data().reponse,
-          observation: doc.data().observation
-        }));
-        
-        if (JSON.stringify(cloudData) !== JSON.stringify(universites)) {
-          setUniversites(cloudData);
-        }
-      }
-    }, (error) => console.log('Firebase listener:', error.message));
+      const cloudData: Universite[] = snapshot.docs.map(doc => ({
+        id: doc.data().id,
+        nom: doc.data().nom,
+        ville: doc.data().ville,
+        statut: doc.data().statut,
+        reponse: doc.data().reponse,
+        observation: doc.data().observation
+      }));
+      
+      setUniversites(cloudData);
+    }, (error) => console.log('Firebase listener universités:', error.message));
 
     return () => unsubscribe();
-  }, [universites]);
+  }, []);
 
   // Écouter Firebase pour écoles
   useEffect(() => {
     const ecolesRef = collection(db, 'ecoles');
     const unsubscribe = onSnapshot(ecolesRef, (snapshot) => {
-      if (!snapshot.empty) {
-        const cloudData: Ecole[] = snapshot.docs.map(doc => ({
-          id: doc.data().id,
-          nom: doc.data().nom,
-          niveau: doc.data().niveau,
-          statut: doc.data().statut,
-          reponse: doc.data().reponse,
-          observation: doc.data().observation
-        }));
-        
-        if (JSON.stringify(cloudData) !== JSON.stringify(ecoles)) {
-          setEcoles(cloudData);
-        }
-      }
-    }, (error) => console.log('Firebase listener:', error.message));
+      const cloudData: Ecole[] = snapshot.docs.map(doc => ({
+        id: doc.data().id,
+        nom: doc.data().nom,
+        niveau: doc.data().niveau,
+        statut: doc.data().statut,
+        reponse: doc.data().reponse,
+        observation: doc.data().observation
+      }));
+      
+      setEcoles(cloudData);
+    }, (error) => console.log('Firebase listener écoles:', error.message));
 
     return () => unsubscribe();
-  }, [ecoles]);
+  }, []);
+
+  // Synchronisation automatique
+  const syncUniversitesToFirebase = async (data: Universite[]) => {
+    try {
+      const univRef = collection(db, 'universites');
+      const existingUniv = await getDocs(univRef);
+      const batchUniv = writeBatch(db);
+      existingUniv.forEach(doc => batchUniv.delete(doc.ref));
+      await batchUniv.commit();
+
+      for (const row of data) {
+        await addDoc(univRef, { ...row, createdAt: new Date() });
+      }
+    } catch (error) {
+      console.log('Erreur sync universités:', error);
+    }
+  };
+
+  const syncEcolesToFirebase = async (data: Ecole[]) => {
+    try {
+      const ecolesRef = collection(db, 'ecoles');
+      const existingEcoles = await getDocs(ecolesRef);
+      const batchEcoles = writeBatch(db);
+      existingEcoles.forEach(doc => batchEcoles.delete(doc.ref));
+      await batchEcoles.commit();
+
+      for (const row of data) {
+        await addDoc(ecolesRef, { ...row, createdAt: new Date() });
+      }
+    } catch (error) {
+      console.log('Erreur sync écoles:', error);
+    }
+  };
 
   // Universités
   const modifierUniversite = (id: number, champ: keyof Universite, valeur: string) => {
