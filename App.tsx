@@ -43,7 +43,7 @@ const App: React.FC = () => {
   const [lastSync, setLastSync] = useState(() => localStorage.getItem('last_sync_date') || 'Jamais');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Calculer les stats
+  // Calculer les stats et sauvegarder localement
   useEffect(() => {
     const validUniv = universites.filter(item => item.nom.trim() !== "");
     setStatsUniv({
@@ -52,9 +52,6 @@ const App: React.FC = () => {
       reponses: universites.filter(item => ["Positive", "Négative"].includes(item.reponse)).length
     });
     localStorage.setItem(STORAGE_KEY, JSON.stringify(universites));
-    
-    // Synchroniser automatiquement avec Firebase
-    syncUniversitesToFirebase(universites);
   }, [universites]);
 
   useEffect(() => {
@@ -65,9 +62,6 @@ const App: React.FC = () => {
       reponses: ecoles.filter(item => ["Positive", "Négative"].includes(item.reponse)).length
     });
     localStorage.setItem(STORAGE_KEY_ECOLES, JSON.stringify(ecoles));
-    
-    // Synchroniser automatiquement avec Firebase
-    syncEcolesToFirebase(ecoles);
   }, [ecoles]);
 
   // Écouter Firebase pour universités
@@ -83,7 +77,9 @@ const App: React.FC = () => {
         observation: doc.data().observation
       }));
       
-      setUniversites(cloudData);
+      if (cloudData.length > 0 && JSON.stringify(cloudData) !== JSON.stringify(universites)) {
+        setUniversites(cloudData);
+      }
     }, (error) => console.log('Firebase listener universités:', error.message));
 
     return () => unsubscribe();
@@ -102,7 +98,9 @@ const App: React.FC = () => {
         observation: doc.data().observation
       }));
       
-      setEcoles(cloudData);
+      if (cloudData.length > 0 && JSON.stringify(cloudData) !== JSON.stringify(ecoles)) {
+        setEcoles(cloudData);
+      }
     }, (error) => console.log('Firebase listener écoles:', error.message));
 
     return () => unsubscribe();
@@ -110,6 +108,7 @@ const App: React.FC = () => {
 
   // Synchronisation automatique
   const syncUniversitesToFirebase = async (data: Universite[]) => {
+    if (data.length === 0) return;
     try {
       const univRef = collection(db, 'universites');
       const existingUniv = await getDocs(univRef);
@@ -118,7 +117,9 @@ const App: React.FC = () => {
       await batchUniv.commit();
 
       for (const row of data) {
-        await addDoc(univRef, { ...row, createdAt: new Date() });
+        if (row.nom.trim()) {
+          await addDoc(univRef, { ...row, createdAt: new Date() });
+        }
       }
     } catch (error) {
       console.log('Erreur sync universités:', error);
@@ -126,6 +127,7 @@ const App: React.FC = () => {
   };
 
   const syncEcolesToFirebase = async (data: Ecole[]) => {
+    if (data.length === 0) return;
     try {
       const ecolesRef = collection(db, 'ecoles');
       const existingEcoles = await getDocs(ecolesRef);
@@ -134,7 +136,9 @@ const App: React.FC = () => {
       await batchEcoles.commit();
 
       for (const row of data) {
-        await addDoc(ecolesRef, { ...row, createdAt: new Date() });
+        if (row.nom.trim()) {
+          await addDoc(ecolesRef, { ...row, createdAt: new Date() });
+        }
       }
     } catch (error) {
       console.log('Erreur sync écoles:', error);
