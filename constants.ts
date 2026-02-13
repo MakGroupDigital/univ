@@ -7,3 +7,4 @@ export const COLORS = {
 };
 
 export const STORAGE_KEY = 'suivi_universitaire_rdc_data';
+export const STORAGE_KEY_ECOLES = 'suivi_ecoles_rdc_data';

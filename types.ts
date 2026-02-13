@@ -11,6 +11,15 @@ export interface Universite {
   observation: string;
 }
 
+export interface Ecole {
+  id: number;
+  nom: string;
+  niveau: string;
+  statut: StatutEnvoi;
+  reponse: ReponseOfficielle;
+  observation: string;
+}
+
 export interface Stats {
   total: number;
   envoyes: number;

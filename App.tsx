@@ -1,48 +1,73 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Download, Plus, Trash2, GraduationCap, 
-  Send, CheckCircle, Cloud, Settings,
-  RefreshCw, X, CloudDownload, Menu
+  Plus, Cloud, Settings, RefreshCw, X, CloudDownload, Menu, BookOpen, GraduationCap
 } from 'lucide-react';
-import { Universite, Stats } from './types';
-import { COLORS, STORAGE_KEY } from './constants';
+import { Universite, Ecole, Stats } from './types';
+import { COLORS, STORAGE_KEY, STORAGE_KEY_ECOLES } from './constants';
 import { db } from './firebase.config';
-import { collection, addDoc, getDocs, deleteDoc, doc, writeBatch, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, writeBatch, onSnapshot } from 'firebase/firestore';
 import { InstallPrompt } from './InstallPrompt';
+import { UniversitesSection } from './UniversitesSection';
+import { EcolesSection } from './EcolesSection';
 
-const initialData: Universite[] = [
+const initialUniversites: Universite[] = [
   { id: 1, nom: "Université de Kinshasa", ville: "Kinshasa", statut: "Envoyé", reponse: "En attente", observation: "Dossier déposé au rectorat" },
   { id: 2, nom: "UNILU", ville: "Lubumbashi", statut: "En préparation", reponse: "-", observation: "Attente relevés de notes" },
   { id: 3, nom: "Université de Liège", ville: "Liège", statut: "Envoyé", reponse: "Positive", observation: "Bourse d'étude confirmée" }
 ];
 
+const initialEcoles: Ecole[] = [
+  { id: 1, nom: "Lycée Kasavubu", niveau: "Terminale", statut: "Envoyé", reponse: "Positive", observation: "Admission confirmée" },
+  { id: 2, nom: "Collège Saint-Joseph", niveau: "3ème", statut: "En préparation", reponse: "-", observation: "Dossier en cours" }
+];
+
+type Section = 'universites' | 'ecoles';
+
 const App: React.FC = () => {
-  const [data, setData] = useState<Universite[]>(() => {
+  const [section, setSection] = useState<Section>('universites');
+  
+  const [universites, setUniversites] = useState<Universite[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : initialData;
+    return saved ? JSON.parse(saved) : initialUniversites;
   });
 
-  const [stats, setStats] = useState<Stats>({ total: 0, envoyes: 0, reponses: 0 });
+  const [ecoles, setEcoles] = useState<Ecole[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_ECOLES);
+    return saved ? JSON.parse(saved) : initialEcoles;
+  });
+
+  const [statsUniv, setStatsUniv] = useState<Stats>({ total: 0, envoyes: 0, reponses: 0 });
+  const [statsEcoles, setStatsEcoles] = useState<Stats>({ total: 0, envoyes: 0, reponses: 0 });
   const [isSyncing, setIsSyncing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [lastSync, setLastSync] = useState(() => localStorage.getItem('last_sync_date') || 'Jamais');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Calculer les stats
   useEffect(() => {
-    const validData = data.filter(item => item.nom.trim() !== "");
-    setStats({
-      total: validData.length,
-      envoyes: data.filter(item => item.statut === "Envoyé").length,
-      reponses: data.filter(item => ["Positive", "Négative"].includes(item.reponse)).length
+    const validUniv = universites.filter(item => item.nom.trim() !== "");
+    setStatsUniv({
+      total: validUniv.length,
+      envoyes: universites.filter(item => item.statut === "Envoyé").length,
+      reponses: universites.filter(item => ["Positive", "Négative"].includes(item.reponse)).length
     });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }, [data]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(universites));
+  }, [universites]);
 
-  // Écouter les changements Firebase en temps réel
   useEffect(() => {
-    const universiteRef = collection(db, 'universites');
-    
-    const unsubscribe = onSnapshot(universiteRef, (snapshot) => {
+    const validEcoles = ecoles.filter(item => item.nom.trim() !== "");
+    setStatsEcoles({
+      total: validEcoles.length,
+      envoyes: ecoles.filter(item => item.statut === "Envoyé").length,
+      reponses: ecoles.filter(item => ["Positive", "Négative"].includes(item.reponse)).length
+    });
+    localStorage.setItem(STORAGE_KEY_ECOLES, JSON.stringify(ecoles));
+  }, [ecoles]);
+
+  // Écouter Firebase pour universités
+  useEffect(() => {
+    const univRef = collection(db, 'universites');
+    const unsubscribe = onSnapshot(univRef, (snapshot) => {
       if (!snapshot.empty) {
         const cloudData: Universite[] = snapshot.docs.map(doc => ({
           id: doc.data().id,
@@ -53,65 +78,102 @@ const App: React.FC = () => {
           observation: doc.data().observation
         }));
         
-        const localData = localStorage.getItem(STORAGE_KEY);
-        const localDataParsed = localData ? JSON.parse(localData) : [];
-        
-        if (JSON.stringify(cloudData) !== JSON.stringify(localDataParsed)) {
-          console.log('🔄 Mise à jour depuis Firebase');
-          setData(cloudData);
+        if (JSON.stringify(cloudData) !== JSON.stringify(universites)) {
+          setUniversites(cloudData);
         }
       }
-    }, (error) => {
-      console.log('ℹ️ Listener Firebase:', error.message);
-    });
+    }, (error) => console.log('Firebase listener:', error.message));
 
     return () => unsubscribe();
-  }, []);
+  }, [universites]);
 
-  const modifierLigne = (id: number, champ: keyof Universite, valeur: string) => {
-    setData(prev => prev.map(item => item.id === id ? { ...item, [champ]: valeur } : item));
+  // Écouter Firebase pour écoles
+  useEffect(() => {
+    const ecolesRef = collection(db, 'ecoles');
+    const unsubscribe = onSnapshot(ecolesRef, (snapshot) => {
+      if (!snapshot.empty) {
+        const cloudData: Ecole[] = snapshot.docs.map(doc => ({
+          id: doc.data().id,
+          nom: doc.data().nom,
+          niveau: doc.data().niveau,
+          statut: doc.data().statut,
+          reponse: doc.data().reponse,
+          observation: doc.data().observation
+        }));
+        
+        if (JSON.stringify(cloudData) !== JSON.stringify(ecoles)) {
+          setEcoles(cloudData);
+        }
+      }
+    }, (error) => console.log('Firebase listener:', error.message));
+
+    return () => unsubscribe();
+  }, [ecoles]);
+
+  // Universités
+  const modifierUniversite = (id: number, champ: keyof Universite, valeur: string) => {
+    setUniversites(prev => prev.map(item => item.id === id ? { ...item, [champ]: valeur } : item));
   };
 
-  const ajouterLigne = () => {
-    const nouvelId = data.length > 0 ? Math.max(...data.map(i => i.id)) + 1 : 1;
-    setData(prev => [...prev, { id: nouvelId, nom: "", ville: "", statut: "Non envoyé", reponse: "-", observation: "" }]);
+  const ajouterUniversite = () => {
+    const nouvelId = universites.length > 0 ? Math.max(...universites.map(i => i.id)) + 1 : 1;
+    setUniversites(prev => [...prev, { id: nouvelId, nom: "", ville: "", statut: "Non envoyé", reponse: "-", observation: "" }]);
     setMobileMenuOpen(false);
   };
 
-  const supprimerLigne = (id: number) => {
+  const supprimerUniversite = (id: number) => {
     if (window.confirm("Supprimer cette ligne ?")) {
-      setData(prev => prev.filter(item => item.id !== id));
+      setUniversites(prev => prev.filter(item => item.id !== id));
     }
   };
 
+  // Écoles
+  const modifierEcole = (id: number, champ: keyof Ecole, valeur: string) => {
+    setEcoles(prev => prev.map(item => item.id === id ? { ...item, [champ]: valeur } : item));
+  };
+
+  const ajouterEcole = () => {
+    const nouvelId = ecoles.length > 0 ? Math.max(...ecoles.map(i => i.id)) + 1 : 1;
+    setEcoles(prev => [...prev, { id: nouvelId, nom: "", niveau: "", statut: "Non envoyé", reponse: "-", observation: "" }]);
+    setMobileMenuOpen(false);
+  };
+
+  const supprimerEcole = (id: number) => {
+    if (window.confirm("Supprimer cette ligne ?")) {
+      setEcoles(prev => prev.filter(item => item.id !== id));
+    }
+  };
+
+  // Synchronisation
   const saveToCloud = async () => {
     setIsSyncing(true);
     try {
-      const universiteRef = collection(db, 'universites');
-      
-      const existingDocs = await getDocs(universiteRef);
-      const batch = writeBatch(db);
-      existingDocs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-      await batch.commit();
+      // Sauvegarder universités
+      const univRef = collection(db, 'universites');
+      const existingUniv = await getDocs(univRef);
+      const batchUniv = writeBatch(db);
+      existingUniv.forEach(doc => batchUniv.delete(doc.ref));
+      await batchUniv.commit();
 
-      for (const row of data) {
-        await addDoc(universiteRef, {
-          id: row.id,
-          nom: row.nom,
-          ville: row.ville,
-          statut: row.statut,
-          reponse: row.reponse,
-          observation: row.observation,
-          createdAt: new Date()
-        });
+      for (const row of universites) {
+        await addDoc(univRef, { ...row, createdAt: new Date() });
+      }
+
+      // Sauvegarder écoles
+      const ecolesRef = collection(db, 'ecoles');
+      const existingEcoles = await getDocs(ecolesRef);
+      const batchEcoles = writeBatch(db);
+      existingEcoles.forEach(doc => batchEcoles.delete(doc.ref));
+      await batchEcoles.commit();
+
+      for (const row of ecoles) {
+        await addDoc(ecolesRef, { ...row, createdAt: new Date() });
       }
 
       const now = new Date().toLocaleString('fr-FR');
       setLastSync(now);
       localStorage.setItem('last_sync_date', now);
-      alert("✓ Données sauvegardées dans Firebase !");
+      alert("✓ Données sauvegardées !");
     } catch (error) {
       alert("Erreur : " + (error instanceof Error ? error.message : "Erreur lors de la sauvegarde"));
     } finally {
@@ -122,11 +184,10 @@ const App: React.FC = () => {
   const loadFromCloud = async () => {
     setIsSyncing(true);
     try {
-      const universiteRef = collection(db, 'universites');
-      const snapshot = await getDocs(universiteRef);
-
-      if (!snapshot.empty) {
-        const cloudData: Universite[] = snapshot.docs.map(doc => ({
+      const univRef = collection(db, 'universites');
+      const univSnapshot = await getDocs(univRef);
+      if (!univSnapshot.empty) {
+        const cloudUniv: Universite[] = univSnapshot.docs.map(doc => ({
           id: doc.data().id,
           nom: doc.data().nom,
           ville: doc.data().ville,
@@ -134,15 +195,27 @@ const App: React.FC = () => {
           reponse: doc.data().reponse,
           observation: doc.data().observation
         }));
-
-        setData(cloudData);
-        const now = new Date().toLocaleString('fr-FR');
-        setLastSync(now);
-        localStorage.setItem('last_sync_date', now);
-        alert("✓ Données importées depuis Firebase !");
-      } else {
-        alert("Aucune donnée trouvée.");
+        setUniversites(cloudUniv);
       }
+
+      const ecolesRef = collection(db, 'ecoles');
+      const ecolesSnapshot = await getDocs(ecolesRef);
+      if (!ecolesSnapshot.empty) {
+        const cloudEcoles: Ecole[] = ecolesSnapshot.docs.map(doc => ({
+          id: doc.data().id,
+          nom: doc.data().nom,
+          niveau: doc.data().niveau,
+          statut: doc.data().statut,
+          reponse: doc.data().reponse,
+          observation: doc.data().observation
+        }));
+        setEcoles(cloudEcoles);
+      }
+
+      const now = new Date().toLocaleString('fr-FR');
+      setLastSync(now);
+      localStorage.setItem('last_sync_date', now);
+      alert("✓ Données importées !");
     } catch (error) {
       alert("Erreur : " + (error instanceof Error ? error.message : "Erreur lors du chargement"));
     } finally {
@@ -150,18 +223,10 @@ const App: React.FC = () => {
     }
   };
 
-  const exporterExcel = () => {
-    const headers = "ID,Université,Ville,Statut,Réponse,Observation\n";
-    const csvContent = data.map(i => `${i.id},"${i.nom}","${i.ville}","${i.statut}","${i.reponse}","${i.observation}"`).join("\n");
-    const blob = new Blob(["\uFEFF" + headers + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `export_rdc.csv`;
-    link.click();
-  };
+  const currentStats = section === 'universites' ? statsUniv : statsEcoles;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col pb-20 md:pb-0">
       <InstallPrompt />
       
       {/* Header */}
@@ -172,7 +237,7 @@ const App: React.FC = () => {
               <div className={`w-2 h-10 bg-[${COLORS.RDC_RED}] rounded-full`}></div>
               <div className="min-w-0">
                 <h1 className={`text-lg md:text-2xl font-black text-[${COLORS.RDC_BLUE}] truncate`}>
-                  Suivi <span className={`text-[${COLORS.RDC_YELLOW}]`}>Univ</span>
+                  Suivi <span className={`text-[${COLORS.RDC_YELLOW}]`}>RDC</span>
                 </h1>
                 <div className="flex items-center gap-1 text-xs font-bold text-slate-400">
                   <RefreshCw size={10} className={isSyncing ? "animate-spin text-blue-500" : ""} />
@@ -192,7 +257,7 @@ const App: React.FC = () => {
               <button onClick={() => setShowSettings(true)} className="p-2.5 bg-white border border-slate-200 rounded-lg hover:text-blue-500 transition-all" title="Paramètres">
                 <Settings size={18} className="text-slate-400" />
               </button>
-              <button onClick={ajouterLigne} className={`p-2.5 bg-[${COLORS.RDC_BLUE}] rounded-lg text-white hover:shadow-lg transition-all`} title="Ajouter">
+              <button onClick={() => section === 'universites' ? ajouterUniversite() : ajouterEcole()} className={`p-2.5 bg-[${COLORS.RDC_BLUE}] rounded-lg text-white hover:shadow-lg transition-all`} title="Ajouter">
                 <Plus size={18} />
               </button>
             </div>
@@ -212,7 +277,7 @@ const App: React.FC = () => {
               <button onClick={saveToCloud} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-500 rounded-lg text-sm font-bold text-white hover:bg-emerald-600 ${isSyncing ? 'opacity-50' : ''}`}>
                 <Cloud size={16} /> Sauvegarder
               </button>
-              <button onClick={ajouterLigne} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-[${COLORS.RDC_BLUE}] rounded-lg text-sm font-bold text-white hover:shadow-lg`}>
+              <button onClick={() => section === 'universites' ? ajouterUniversite() : ajouterEcole()} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-[${COLORS.RDC_BLUE}] rounded-lg text-sm font-bold text-white hover:shadow-lg`}>
                 <Plus size={16} /> Ajouter
               </button>
             </div>
@@ -220,40 +285,56 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Stats */}
-      <div className="max-w-7xl mx-auto w-full px-4 md:px-8 py-4 md:py-6">
-        <div className="grid grid-cols-3 gap-2 md:gap-4">
-          <StatCard title="Total" value={stats.total} color={COLORS.RDC_BLUE} />
-          <StatCard title="Envoyés" value={stats.envoyes} color={COLORS.RDC_YELLOW} textColor="text-slate-900" />
-          <StatCard title="Réponses" value={stats.reponses} color={COLORS.RDC_RED} />
-        </div>
-      </div>
-
-      {/* Table */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 md:px-8 pb-6">
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-100">
-                <tr className="text-xs md:text-sm">
-                  <th className="p-2 md:p-4 text-center font-bold text-slate-600 w-8 md:w-12">#</th>
-                  <th className="p-2 md:p-4 text-left font-bold text-slate-600">Établissement</th>
-                  <th className="p-2 md:p-4 text-left font-bold text-slate-600 hidden sm:table-cell">Ville</th>
-                  <th className="p-2 md:p-4 text-left font-bold text-slate-600 hidden md:table-cell">Statut</th>
-                  <th className="p-2 md:p-4 text-left font-bold text-slate-600 hidden lg:table-cell">Réponse</th>
-                  <th className="p-2 md:p-4 text-left font-bold text-slate-600 hidden xl:table-cell">Notes</th>
-                  <th className="p-2 md:p-4 w-8 md:w-12"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {data.map((item, idx) => (
-                  <ApplicationRow key={item.id} item={item} idx={idx} onEdit={modifierLigne} onDelete={supprimerLigne} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {/* Content */}
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 md:px-8 py-6">
+        {section === 'universites' ? (
+          <UniversitesSection
+            data={universites}
+            stats={statsUniv}
+            isSyncing={isSyncing}
+            onEdit={modifierUniversite}
+            onDelete={supprimerUniversite}
+            onAdd={ajouterUniversite}
+            onSave={saveToCloud}
+            onLoad={loadFromCloud}
+          />
+        ) : (
+          <EcolesSection
+            data={ecoles}
+            stats={statsEcoles}
+            onEdit={modifierEcole}
+            onDelete={supprimerEcole}
+          />
+        )}
       </main>
+
+      {/* Bottom Navigation Mobile */}
+      <nav className="fixed bottom-0 left-0 right-0 md:hidden bg-white border-t border-slate-100 shadow-lg">
+        <div className="flex items-center justify-around">
+          <button
+            onClick={() => setSection('universites')}
+            className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 px-4 transition-all ${
+              section === 'universites'
+                ? `bg-[${COLORS.RDC_BLUE}] text-white`
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <GraduationCap size={20} />
+            <span className="text-xs font-bold">Universités</span>
+          </button>
+          <button
+            onClick={() => setSection('ecoles')}
+            className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 px-4 transition-all ${
+              section === 'ecoles'
+                ? `bg-[${COLORS.RDC_BLUE}] text-white`
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <BookOpen size={20} />
+            <span className="text-xs font-bold">Écoles</span>
+          </button>
+        </div>
+      </nav>
 
       {/* Settings Modal */}
       {showSettings && (
@@ -283,72 +364,5 @@ const App: React.FC = () => {
     </div>
   );
 };
-
-const StatCard: React.FC<any> = ({ title, value, color, textColor = "text-white" }) => (
-  <div className={`p-3 md:p-4 rounded-xl shadow-sm border border-slate-100 ${textColor}`} style={{ backgroundColor: color }}>
-    <div className="text-xs md:text-sm font-bold opacity-80">{title}</div>
-    <div className="text-2xl md:text-3xl font-black">{value}</div>
-  </div>
-);
-
-const ApplicationRow: React.FC<any> = ({ item, idx, onEdit, onDelete }) => (
-  <tr className="hover:bg-blue-50/40 group transition-all text-xs md:text-sm">
-    <td className="p-2 md:p-4 text-center font-bold text-slate-300">{idx + 1}</td>
-    <td className="p-2 md:p-4 font-bold text-slate-800">
-      <input 
-        type="text" 
-        value={item.nom} 
-        onChange={(e) => onEdit(item.id, 'nom', e.target.value)} 
-        placeholder="..." 
-        className="bg-transparent outline-none w-full border-b border-transparent focus:border-blue-400 text-xs md:text-sm"
-      />
-    </td>
-    <td className="p-2 md:p-4 text-slate-600 hidden sm:table-cell">
-      <input 
-        type="text" 
-        value={item.ville} 
-        onChange={(e) => onEdit(item.id, 'ville', e.target.value)} 
-        placeholder="..." 
-        className="bg-transparent outline-none w-full text-xs md:text-sm"
-      />
-    </td>
-    <td className="p-2 md:p-4 hidden md:table-cell">
-      <select 
-        value={item.statut} 
-        onChange={(e) => onEdit(item.id, 'statut', e.target.value)} 
-        className="p-1 rounded-lg text-xs font-bold border border-slate-100 bg-white outline-none"
-      >
-        <option value="Non envoyé">NON ENVOYÉ</option>
-        <option value="En préparation">PRÉPAR.</option>
-        <option value="Envoyé">ENVOYÉ</option>
-      </select>
-    </td>
-    <td className="p-2 md:p-4 hidden lg:table-cell">
-      <select 
-        value={item.reponse} 
-        onChange={(e) => onEdit(item.id, 'reponse', e.target.value)} 
-        className={`p-1 rounded-lg text-xs font-bold border outline-none ${item.reponse === 'Positive' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : item.reponse === 'Négative' ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-transparent border-slate-100'}`}
-      >
-        <option value="-">-</option>
-        <option value="En attente">ATTENTE</option>
-        <option value="Positive">OUI</option>
-        <option value="Négative">NON</option>
-      </select>
-    </td>
-    <td className="p-2 md:p-4 text-slate-400 hidden xl:table-cell">
-      <input 
-        type="text" 
-        value={item.observation} 
-        onChange={(e) => onEdit(item.id, 'observation', e.target.value)} 
-        className="bg-transparent outline-none w-full text-xs md:text-sm"
-      />
-    </td>
-    <td className="p-2 md:p-4 text-center opacity-0 group-hover:opacity-100 transition-all">
-      <button onClick={() => onDelete(item.id)} className="text-slate-300 hover:text-red-500 transition-colors">
-        <Trash2 size={16} />
-      </button>
-    </td>
-  </tr>
-);
 
 export default App;
