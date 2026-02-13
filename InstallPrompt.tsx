@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Download, Smartphone } from 'lucide-react';
+import { X, Download, Smartphone, Plus } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -12,8 +12,15 @@ export const InstallPrompt: React.FC = () => {
   const [isIOS, setIsIOS] = useState(false);
   const [isAndroid, setIsAndroid] = useState(false);
   const [isSafari, setIsSafari] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
+    // Vérifier si l'app est déjà installée
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setIsInstalled(true);
+      return;
+    }
+
     // Détecter le navigateur et l'OS
     const ua = navigator.userAgent;
     const isIOSDevice = /iPad|iPhone|iPod/.test(ua);
@@ -33,12 +40,12 @@ export const InstallPrompt: React.FC = () => {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    // Afficher le prompt après 5 secondes si pas déjà installé
+    // Afficher le prompt après 2 secondes
     const timer = setTimeout(() => {
       if (!window.matchMedia('(display-mode: standalone)').matches) {
         setShowPrompt(true);
       }
-    }, 5000);
+    }, 2000);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -57,26 +64,26 @@ export const InstallPrompt: React.FC = () => {
     }
   };
 
-  if (!showPrompt) return null;
+  if (!showPrompt || isInstalled) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-4">
-      <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-md shadow-2xl animate-in slide-in-from-bottom-5 md:slide-in-from-center">
+      <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-md shadow-2xl">
         <div className="p-6 md:p-8">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-red-500 rounded-2xl flex items-center justify-center">
-                <Smartphone size={24} className="text-white" />
+            <div className="flex items-center gap-3 flex-1">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-red-500 rounded-2xl flex items-center justify-center flex-shrink-0">
+                <Plus size={24} className="text-white" />
               </div>
-              <div>
-                <h2 className="text-xl font-black text-slate-900">Installer l'app</h2>
+              <div className="min-w-0">
+                <h2 className="text-lg md:text-xl font-black text-slate-900">Installer l'app</h2>
                 <p className="text-xs text-slate-500">Accès rapide depuis votre écran d'accueil</p>
               </div>
             </div>
             <button
               onClick={() => setShowPrompt(false)}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-all"
+              className="p-2 hover:bg-slate-100 rounded-lg transition-all flex-shrink-0"
             >
               <X size={20} className="text-slate-400" />
             </button>
@@ -90,7 +97,7 @@ export const InstallPrompt: React.FC = () => {
                   <div className="flex-shrink-0 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">1</div>
                   <div>
                     <p className="font-bold text-slate-900 text-sm">Appuyez sur le bouton Partager</p>
-                    <p className="text-xs text-slate-600">En bas de l'écran</p>
+                    <p className="text-xs text-slate-600">En bas de l'écran (icône carrée avec flèche)</p>
                   </div>
                 </div>
                 <div className="flex gap-3">
@@ -165,8 +172,8 @@ export const InstallPrompt: React.FC = () => {
                 onClick={handleInstall}
                 className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-red-500 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2"
               >
-                <Download size={18} />
-                Installer
+                <Plus size={18} className="text-white" />
+                <span>Installer</span>
               </button>
             )}
           </div>
