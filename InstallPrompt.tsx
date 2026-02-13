@@ -55,10 +55,14 @@ export const InstallPrompt: React.FC = () => {
 
   const handleInstall = async () => {
     if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setShowPrompt(false);
+      try {
+        await deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          setShowPrompt(false);
+        }
+      } catch (error) {
+        console.log('Installation error:', error);
       }
       setDeferredPrompt(null);
     }

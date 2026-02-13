@@ -77,14 +77,16 @@ self.addEventListener('fetch', event => {
 
           return fetch(event.request)
             .then(response => {
-              if (!response || response.status !== 200) {
+              if (!response || response.status !== 200 || url.protocol !== 'http:' && url.protocol !== 'https:') {
                 return response;
               }
 
               const responseToCache = response.clone();
               caches.open(CACHE_NAME)
                 .then(cache => {
-                  cache.put(event.request, responseToCache);
+                  cache.put(event.request, responseToCache).catch(() => {
+                    // Ignorer les erreurs de cache (chrome-extension, etc)
+                  });
                 });
 
               return response;
@@ -101,14 +103,16 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        if (!response || response.status !== 200) {
+        if (!response || response.status !== 200 || url.protocol !== 'http:' && url.protocol !== 'https:') {
           return response;
         }
 
         const responseToCache = response.clone();
         caches.open(CACHE_NAME)
           .then(cache => {
-            cache.put(event.request, responseToCache);
+            cache.put(event.request, responseToCache).catch(() => {
+              // Ignorer les erreurs de cache
+            });
           });
 
         return response;
