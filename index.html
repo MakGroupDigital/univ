@@ -1,9 +1,33 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="Application de suivi des candidatures universitaires en République Démocratique du Congo">
+    <meta name="theme-color" content="#007FFF">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Suivi Univ">
+    
+    <!-- Favicons -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://suivi-universitaire.makgroup.com">
+    <meta property="og:title" content="Suivi Universitaire RDC">
+    <meta property="og:description" content="Application de suivi des candidatures universitaires en République Démocratique du Congo">
+    <meta property="og:image" content="/favicon.svg">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://suivi-universitaire.makgroup.com">
+    <meta property="twitter:title" content="Suivi Universitaire RDC">
+    <meta property="twitter:description" content="Application de suivi des candidatures universitaires en République Démocratique du Congo">
+    <meta property="twitter:image" content="/favicon.svg">
+    
     <title>Suivi Universitaire RDC</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -11,7 +35,6 @@
         body {
             font-family: 'Inter', sans-serif;
         }
-        /* Custom scrollbar for better aesthetics */
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -42,5 +65,18 @@
 <body class="bg-[#F8FAFC]">
     <div id="root"></div>
 <script type="module" src="/index.tsx"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(registration => {
+          console.log('✅ Service Worker enregistré:', registration);
+        })
+        .catch(error => {
+          console.log('❌ Erreur Service Worker:', error);
+        });
+    });
+  }
+</script>
 </body>
 </html>
