@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { 
   Download, Plus, Trash2, GraduationCap, 
   Send, CheckCircle, Cloud, Settings,
-  RefreshCw, X, CloudDownload
+  RefreshCw, X, CloudDownload, Menu
 } from 'lucide-react';
 import { Universite, Stats } from './types';
 import { COLORS, STORAGE_KEY } from './constants';
 import { db } from './firebase.config';
 import { collection, addDoc, getDocs, deleteDoc, doc, writeBatch, onSnapshot } from 'firebase/firestore';
+import { InstallPrompt } from './InstallPrompt';
 
 const initialData: Universite[] = [
   { id: 1, nom: "Université de Kinshasa", ville: "Kinshasa", statut: "Envoyé", reponse: "En attente", observation: "Dossier déposé au rectorat" },
@@ -25,6 +26,17 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [lastSync, setLastSync] = useState(() => localStorage.getItem('last_sync_date') || 'Jamais');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const validData = data.filter(item => item.nom.trim() !== "");
+    setStats({
+      total: validData.length,
+      envoyes: data.filter(item => item.statut === "Envoyé").length,
+      reponses: data.filter(item => ["Positive", "Négative"].includes(item.reponse)).length
+    });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }, [data]);
 
   // Écouter les changements Firebase en temps réel
   useEffect(() => {
@@ -41,11 +53,9 @@ const App: React.FC = () => {
           observation: doc.data().observation
         }));
         
-        // Mettre à jour les données locales si elles ont changé
         const localData = localStorage.getItem(STORAGE_KEY);
         const localDataParsed = localData ? JSON.parse(localData) : [];
         
-        // Comparer et mettre à jour si différent
         if (JSON.stringify(cloudData) !== JSON.stringify(localDataParsed)) {
           console.log('🔄 Mise à jour depuis Firebase');
           setData(cloudData);
@@ -58,16 +68,6 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    const validData = data.filter(item => item.nom.trim() !== "");
-    setStats({
-      total: validData.length,
-      envoyes: data.filter(item => item.statut === "Envoyé").length,
-      reponses: data.filter(item => ["Positive", "Négative"].includes(item.reponse)).length
-    });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }, [data]);
-
   const modifierLigne = (id: number, champ: keyof Universite, valeur: string) => {
     setData(prev => prev.map(item => item.id === id ? { ...item, [champ]: valeur } : item));
   };
@@ -75,6 +75,7 @@ const App: React.FC = () => {
   const ajouterLigne = () => {
     const nouvelId = data.length > 0 ? Math.max(...data.map(i => i.id)) + 1 : 1;
     setData(prev => [...prev, { id: nouvelId, nom: "", ville: "", statut: "Non envoyé", reponse: "-", observation: "" }]);
+    setMobileMenuOpen(false);
   };
 
   const supprimerLigne = (id: number) => {
@@ -83,13 +84,11 @@ const App: React.FC = () => {
     }
   };
 
-  // SAUVEGARDER VERS FIREBASE
   const saveToCloud = async () => {
     setIsSyncing(true);
     try {
       const universiteRef = collection(db, 'universites');
       
-      // Supprimer tous les documents existants
       const existingDocs = await getDocs(universiteRef);
       const batch = writeBatch(db);
       existingDocs.forEach(doc => {
@@ -97,7 +96,6 @@ const App: React.FC = () => {
       });
       await batch.commit();
 
-      // Ajouter les nouvelles données
       for (const row of data) {
         await addDoc(universiteRef, {
           id: row.id,
@@ -121,7 +119,6 @@ const App: React.FC = () => {
     }
   };
 
-  // CHARGER DEPUIS FIREBASE
   const loadFromCloud = async () => {
     setIsSyncing(true);
     try {
@@ -164,54 +161,88 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8 font-sans text-slate-900">
-      <div className="max-w-7xl mx-auto">
-        <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6">
-          <div className="flex items-center gap-4">
-            <div className={`w-2 h-16 bg-[${COLORS.RDC_RED}] rounded-full`}></div>
-            <div>
-              <h1 className={`text-2xl md:text-3xl font-black text-[${COLORS.RDC_BLUE}] tracking-tight uppercase`}>
-                Suivi <span className={`text-[${COLORS.RDC_YELLOW}]`}>Universitaire</span>
-              </h1>
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-400 mt-1">
-                <RefreshCw size={12} className={isSyncing ? "animate-spin text-blue-500" : ""} />
-                DERNIER SYNC : <span className="text-slate-600">{lastSync}</span>
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
+      <InstallPrompt />
+      
+      {/* Header */}
+      <header className="sticky top-0 z-40 bg-white border-b border-slate-100 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 flex-1">
+              <div className={`w-2 h-10 bg-[${COLORS.RDC_RED}] rounded-full`}></div>
+              <div className="min-w-0">
+                <h1 className={`text-lg md:text-2xl font-black text-[${COLORS.RDC_BLUE}] truncate`}>
+                  Suivi <span className={`text-[${COLORS.RDC_YELLOW}]`}>Univ</span>
+                </h1>
+                <div className="flex items-center gap-1 text-xs font-bold text-slate-400">
+                  <RefreshCw size={10} className={isSyncing ? "animate-spin text-blue-500" : ""} />
+                  <span className="hidden sm:inline">{lastSync}</span>
+                </div>
               </div>
             </div>
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-            <button onClick={loadFromCloud} className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-white border-2 border-slate-200 px-4 py-2.5 rounded-xl text-slate-600 hover:bg-slate-50 transition-all font-bold">
-              <CloudDownload size={20} /> <span className="hidden sm:inline">Importer</span>
-            </button>
-            <button onClick={saveToCloud} className={`flex-1 lg:flex-none flex items-center justify-center gap-2 bg-emerald-500 px-5 py-2.5 rounded-xl text-white hover:bg-emerald-600 shadow-lg transition-all font-bold ${isSyncing ? 'opacity-50' : ''}`}>
-              <Cloud size={20} /> <span>Sauvegarder</span>
-            </button>
-            <button onClick={() => setShowSettings(true)} className="p-2.5 bg-white border-2 border-slate-200 rounded-xl text-slate-400 hover:text-blue-500 transition-all"><Settings size={22} /></button>
-            <button onClick={ajouterLigne} className={`flex-1 lg:flex-none flex items-center justify-center gap-2 bg-[${COLORS.RDC_BLUE}] px-6 py-2.5 rounded-xl text-white shadow-xl font-bold active:scale-95`}>
-              <Plus size={20} /> <span>Ajouter</span>
-            </button>
-          </div>
-        </header>
 
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          <StatCard title="Total" value={stats.total} subtitle="Candidatures" color={COLORS.RDC_BLUE} icon={<GraduationCap size={120} />} />
-          <StatCard title="Envoyés" value={stats.envoyes} subtitle="Dossiers transmis" color={COLORS.RDC_YELLOW} textColor="text-slate-900" icon={<Send size={120} />} />
-          <StatCard title="Réponses" value={stats.reponses} subtitle="Décisions reçues" color={COLORS.RDC_RED} icon={<CheckCircle size={120} />} />
-        </section>
+            {/* Desktop Menu */}
+            <div className="hidden md:flex items-center gap-2">
+              <button onClick={loadFromCloud} className="p-2.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-all" title="Importer">
+                <CloudDownload size={18} className="text-slate-600" />
+              </button>
+              <button onClick={saveToCloud} className={`p-2.5 bg-emerald-500 rounded-lg text-white hover:bg-emerald-600 transition-all ${isSyncing ? 'opacity-50' : ''}`} title="Sauvegarder">
+                <Cloud size={18} />
+              </button>
+              <button onClick={() => setShowSettings(true)} className="p-2.5 bg-white border border-slate-200 rounded-lg hover:text-blue-500 transition-all" title="Paramètres">
+                <Settings size={18} className="text-slate-400" />
+              </button>
+              <button onClick={ajouterLigne} className={`p-2.5 bg-[${COLORS.RDC_BLUE}] rounded-lg text-white hover:shadow-lg transition-all`} title="Ajouter">
+                <Plus size={18} />
+              </button>
+            </div>
 
-        <main className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden mb-10">
+            {/* Mobile Menu Button */}
+            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden p-2.5 bg-white border border-slate-200 rounded-lg">
+              <Menu size={18} className="text-slate-600" />
+            </button>
+          </div>
+
+          {/* Mobile Menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden mt-4 flex gap-2 pb-4">
+              <button onClick={loadFromCloud} className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50">
+                <CloudDownload size={16} /> Importer
+              </button>
+              <button onClick={saveToCloud} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-500 rounded-lg text-sm font-bold text-white hover:bg-emerald-600 ${isSyncing ? 'opacity-50' : ''}`}>
+                <Cloud size={16} /> Sauvegarder
+              </button>
+              <button onClick={ajouterLigne} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-[${COLORS.RDC_BLUE}] rounded-lg text-sm font-bold text-white hover:shadow-lg`}>
+                <Plus size={16} /> Ajouter
+              </button>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* Stats */}
+      <div className="max-w-7xl mx-auto w-full px-4 md:px-8 py-4 md:py-6">
+        <div className="grid grid-cols-3 gap-2 md:gap-4">
+          <StatCard title="Total" value={stats.total} color={COLORS.RDC_BLUE} />
+          <StatCard title="Envoyés" value={stats.envoyes} color={COLORS.RDC_YELLOW} textColor="text-slate-900" />
+          <StatCard title="Réponses" value={stats.reponses} color={COLORS.RDC_RED} />
+        </div>
+      </div>
+
+      {/* Table */}
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 md:px-8 pb-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px]">
-              <thead className="bg-slate-50 border-b border-slate-100 font-black text-[10px] text-slate-400 uppercase tracking-widest">
-                <tr>
-                  <th className="p-5 text-center w-16">#</th>
-                  <th className="p-5 text-left">Établissement</th>
-                  <th className="p-5 text-left">Ville</th>
-                  <th className="p-5 text-left">Statut</th>
-                  <th className="p-5 text-left">Réponse</th>
-                  <th className="p-5 text-left">Notes</th>
-                  <th className="p-5 w-16"></th>
+            <table className="w-full">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr className="text-xs md:text-sm">
+                  <th className="p-2 md:p-4 text-center font-bold text-slate-600 w-8 md:w-12">#</th>
+                  <th className="p-2 md:p-4 text-left font-bold text-slate-600">Établissement</th>
+                  <th className="p-2 md:p-4 text-left font-bold text-slate-600 hidden sm:table-cell">Ville</th>
+                  <th className="p-2 md:p-4 text-left font-bold text-slate-600 hidden md:table-cell">Statut</th>
+                  <th className="p-2 md:p-4 text-left font-bold text-slate-600 hidden lg:table-cell">Réponse</th>
+                  <th className="p-2 md:p-4 text-left font-bold text-slate-600 hidden xl:table-cell">Notes</th>
+                  <th className="p-2 md:p-4 w-8 md:w-12"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -221,24 +252,30 @@ const App: React.FC = () => {
               </tbody>
             </table>
           </div>
-        </main>
-      </div>
+        </div>
+      </main>
 
+      {/* Settings Modal */}
       {showSettings && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl relative">
-            <button onClick={() => setShowSettings(false)} className="absolute top-6 right-6 p-2 text-slate-300 hover:text-slate-600 transition-all"><X size={24} /></button>
-            <h2 className="text-2xl font-black text-slate-800 mb-2">À propos</h2>
-            <p className="text-sm text-slate-500 mb-6">Suivi Universitaire RDC</p>
-            <div className="space-y-6">
-              <div className="text-[11px] text-blue-600 bg-blue-50 p-4 rounded-2xl border border-blue-100 leading-relaxed font-bold space-y-2">
-                <div>✅ Connecté à Firebase</div>
-                <div>📊 Base de données : Firestore</div>
-                <div>📝 Collection : universites</div>
-                <div>🔄 Dernier sync : {lastSync}</div>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-4">
+          <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-md shadow-2xl">
+            <div className="p-6 md:p-8">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-black text-slate-800">À propos</h2>
+                <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-slate-100 rounded-lg">
+                  <X size={20} className="text-slate-400" />
+                </button>
               </div>
               
-              <button onClick={() => setShowSettings(false)} className="w-full bg-slate-900 text-white p-4 rounded-2xl font-bold active:scale-95 transition-all">Fermer</button>
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-2 mb-6">
+                <div className="text-sm font-bold text-blue-900">✅ Connecté à Firebase</div>
+                <div className="text-sm font-bold text-blue-900">📊 Firestore Database</div>
+                <div className="text-sm font-bold text-blue-900">🔄 {lastSync}</div>
+              </div>
+
+              <button onClick={() => setShowSettings(false)} className="w-full bg-slate-900 text-white p-3 rounded-xl font-bold hover:bg-slate-800 transition-all">
+                Fermer
+              </button>
             </div>
           </div>
         </div>
@@ -247,46 +284,69 @@ const App: React.FC = () => {
   );
 };
 
-const StatCard: React.FC<any> = ({ title, value, subtitle, color, textColor = "text-white", icon }) => (
-  <div className={`p-6 rounded-[2rem] shadow-lg relative overflow-hidden group ${textColor}`} style={{ backgroundColor: color }}>
-     <div className="absolute right-[-10%] top-[-10%] opacity-10 group-hover:scale-110 transition-all duration-500">{icon}</div>
-     <div className="flex flex-col gap-1 relative z-10">
-        <span className="font-bold uppercase text-[10px] tracking-[0.2em] opacity-80">{title}</span>
-        <span className="text-5xl font-black">{value}</span>
-        <span className="text-xs font-medium opacity-80">{subtitle}</span>
-     </div>
+const StatCard: React.FC<any> = ({ title, value, color, textColor = "text-white" }) => (
+  <div className={`p-3 md:p-4 rounded-xl shadow-sm border border-slate-100 ${textColor}`} style={{ backgroundColor: color }}>
+    <div className="text-xs md:text-sm font-bold opacity-80">{title}</div>
+    <div className="text-2xl md:text-3xl font-black">{value}</div>
   </div>
 );
 
 const ApplicationRow: React.FC<any> = ({ item, idx, onEdit, onDelete }) => (
-  <tr className="hover:bg-blue-50/40 group transition-all">
-    <td className="p-4 text-center font-black text-slate-300">{idx + 1}</td>
-    <td className="p-4 font-bold text-slate-800">
-      <input type="text" value={item.nom} onChange={(e) => onEdit(item.id, 'nom', e.target.value)} placeholder="..." className="bg-transparent outline-none w-full border-b border-transparent focus:border-blue-400" />
+  <tr className="hover:bg-blue-50/40 group transition-all text-xs md:text-sm">
+    <td className="p-2 md:p-4 text-center font-bold text-slate-300">{idx + 1}</td>
+    <td className="p-2 md:p-4 font-bold text-slate-800">
+      <input 
+        type="text" 
+        value={item.nom} 
+        onChange={(e) => onEdit(item.id, 'nom', e.target.value)} 
+        placeholder="..." 
+        className="bg-transparent outline-none w-full border-b border-transparent focus:border-blue-400 text-xs md:text-sm"
+      />
     </td>
-    <td className="p-4 text-slate-600">
-      <input type="text" value={item.ville} onChange={(e) => onEdit(item.id, 'ville', e.target.value)} placeholder="..." className="bg-transparent outline-none w-full" />
+    <td className="p-2 md:p-4 text-slate-600 hidden sm:table-cell">
+      <input 
+        type="text" 
+        value={item.ville} 
+        onChange={(e) => onEdit(item.id, 'ville', e.target.value)} 
+        placeholder="..." 
+        className="bg-transparent outline-none w-full text-xs md:text-sm"
+      />
     </td>
-    <td className="p-4">
-      <select value={item.statut} onChange={(e) => onEdit(item.id, 'statut', e.target.value)} className="p-2 rounded-xl text-[10px] font-black uppercase border border-slate-100 bg-white outline-none">
+    <td className="p-2 md:p-4 hidden md:table-cell">
+      <select 
+        value={item.statut} 
+        onChange={(e) => onEdit(item.id, 'statut', e.target.value)} 
+        className="p-1 rounded-lg text-xs font-bold border border-slate-100 bg-white outline-none"
+      >
         <option value="Non envoyé">NON ENVOYÉ</option>
-        <option value="En préparation">⏳ PRÉPAR.</option>
-        <option value="Envoyé">📤 ENVOYÉ</option>
+        <option value="En préparation">PRÉPAR.</option>
+        <option value="Envoyé">ENVOYÉ</option>
       </select>
     </td>
-    <td className="p-4">
-      <select value={item.reponse} onChange={(e) => onEdit(item.id, 'reponse', e.target.value)} className={`p-2 rounded-xl text-[10px] font-black uppercase border outline-none ${item.reponse === 'Positive' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : item.reponse === 'Négative' ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-transparent border-slate-100 text-slate-400'}`}>
+    <td className="p-2 md:p-4 hidden lg:table-cell">
+      <select 
+        value={item.reponse} 
+        onChange={(e) => onEdit(item.id, 'reponse', e.target.value)} 
+        className={`p-1 rounded-lg text-xs font-bold border outline-none ${item.reponse === 'Positive' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : item.reponse === 'Négative' ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-transparent border-slate-100'}`}
+      >
         <option value="-">-</option>
         <option value="En attente">ATTENTE</option>
-        <option value="Positive">✔ OUI</option>
-        <option value="Négative">✘ NON</option>
+        <option value="Positive">OUI</option>
+        <option value="Négative">NON</option>
       </select>
     </td>
-    <td className="p-4 italic text-sm text-slate-400">
-      <input type="text" value={item.observation} onChange={(e) => onEdit(item.id, 'observation', e.target.value)} className="bg-transparent outline-none w-full" />
+    <td className="p-2 md:p-4 text-slate-400 hidden xl:table-cell">
+      <input 
+        type="text" 
+        value={item.observation} 
+        onChange={(e) => onEdit(item.id, 'observation', e.target.value)} 
+        className="bg-transparent outline-none w-full text-xs md:text-sm"
+      />
     </td>
-    <td className="p-4 text-center opacity-0 group-hover:opacity-100 transition-all">
-      <button onClick={() => onDelete(item.id)} className="text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+    <td className="p-2 md:p-4 text-center opacity-0 group-hover:opacity-100 transition-all">
+      <button onClick={() => onDelete(item.id)} className="text-slate-300 hover:text-red-500 transition-colors">
+        <Trash2 size={16} />
+      </button>
     </td>
   </tr>
 );
