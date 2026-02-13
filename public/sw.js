@@ -28,10 +28,9 @@ self.addEventListener('activate', event => {
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
-          if (cacheName !== STATIC_CACHE && cacheName !== CACHE_NAME) {
-            console.log('🗑️ Suppression ancien cache:', cacheName);
-            return caches.delete(cacheName);
-          }
+          // Supprimer tous les anciens caches
+          console.log('🗑️ Suppression ancien cache:', cacheName);
+          return caches.delete(cacheName);
         })
       );
     })
@@ -56,6 +55,12 @@ self.addEventListener('fetch', event => {
       url.pathname.includes('firestore')) {
     console.log('🔄 Requête Firebase (pas de cache):', url.pathname);
     return; // Laisser passer sans interception
+  }
+
+  // Ne pas cacher les fichiers .ts, .tsx en développement
+  if (url.pathname.endsWith('.ts') || url.pathname.endsWith('.tsx')) {
+    console.log('🔄 Fichier TypeScript (pas de cache):', url.pathname);
+    return;
   }
 
   // Cacher les ressources statiques

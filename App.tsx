@@ -287,6 +287,36 @@ const App: React.FC = () => {
 
       {/* Content */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 md:px-8 py-6">
+        {/* Desktop Tabs */}
+        <div className="hidden md:flex gap-4 mb-6 border-b border-slate-200">
+          <button
+            onClick={() => setSection('universites')}
+            className={`pb-3 px-4 font-bold transition-all ${
+              section === 'universites'
+                ? `text-[${COLORS.RDC_BLUE}] border-b-2 border-[${COLORS.RDC_BLUE}]`
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <GraduationCap size={18} />
+              <span>Universités</span>
+            </div>
+          </button>
+          <button
+            onClick={() => setSection('ecoles')}
+            className={`pb-3 px-4 font-bold transition-all ${
+              section === 'ecoles'
+                ? `text-[${COLORS.RDC_BLUE}] border-b-2 border-[${COLORS.RDC_BLUE}]`
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <BookOpen size={18} />
+              <span>Écoles</span>
+            </div>
+          </button>
+        </div>
+
         {section === 'universites' ? (
           <UniversitesSection
             data={universites}
