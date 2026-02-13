@@ -7,7 +7,7 @@ import {
 import { Universite, Stats } from './types';
 import { COLORS, STORAGE_KEY } from './constants';
 import { db } from './firebase.config';
-import { collection, addDoc, getDocs, deleteDoc, doc, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc, writeBatch, onSnapshot } from 'firebase/firestore';
 
 const initialData: Universite[] = [
   { id: 1, nom: "Université de Kinshasa", ville: "Kinshasa", statut: "Envoyé", reponse: "En attente", observation: "Dossier déposé au rectorat" },
@@ -25,6 +25,38 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [lastSync, setLastSync] = useState(() => localStorage.getItem('last_sync_date') || 'Jamais');
+
+  // Écouter les changements Firebase en temps réel
+  useEffect(() => {
+    const universiteRef = collection(db, 'universites');
+    
+    const unsubscribe = onSnapshot(universiteRef, (snapshot) => {
+      if (!snapshot.empty) {
+        const cloudData: Universite[] = snapshot.docs.map(doc => ({
+          id: doc.data().id,
+          nom: doc.data().nom,
+          ville: doc.data().ville,
+          statut: doc.data().statut,
+          reponse: doc.data().reponse,
+          observation: doc.data().observation
+        }));
+        
+        // Mettre à jour les données locales si elles ont changé
+        const localData = localStorage.getItem(STORAGE_KEY);
+        const localDataParsed = localData ? JSON.parse(localData) : [];
+        
+        // Comparer et mettre à jour si différent
+        if (JSON.stringify(cloudData) !== JSON.stringify(localDataParsed)) {
+          console.log('🔄 Mise à jour depuis Firebase');
+          setData(cloudData);
+        }
+      }
+    }, (error) => {
+      console.log('ℹ️ Listener Firebase:', error.message);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const validData = data.filter(item => item.nom.trim() !== "");

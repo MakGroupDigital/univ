@@ -1,4 +1,5 @@
 const CACHE_NAME = 'suivi-universitaire-v1';
+const STATIC_CACHE = 'suivi-static-v1';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -9,12 +10,14 @@ const urlsToCache = [
 // Installation du service worker
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        console.log('Cache ouvert');
-        return cache.addAll(urlsToCache);
-      })
-      .catch(err => console.log('Erreur cache:', err))
+    Promise.all([
+      caches.open(STATIC_CACHE)
+        .then(cache => {
+          console.log('✅ Cache statique ouvert');
+          return cache.addAll(urlsToCache);
+        })
+        .catch(err => console.log('❌ Erreur cache statique:', err))
+    ])
   );
   self.skipWaiting();
 });
@@ -25,8 +28,8 @@ self.addEventListener('activate', event => {
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('Suppression ancien cache:', cacheName);
+          if (cacheName !== STATIC_CACHE && cacheName !== CACHE_NAME) {
+            console.log('🗑️ Suppression ancien cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -36,30 +39,73 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Stratégie de cache: Network first, fallback to cache
+// Stratégie de cache intelligente
 self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+
   // Ignorer les requêtes non-GET
   if (event.request.method !== 'GET') {
     return;
   }
 
-  // Ignorer les requêtes Firebase
-  if (event.request.url.includes('firebase') || 
-      event.request.url.includes('firestore')) {
+  // JAMAIS cacher les requêtes Firebase/Firestore
+  if (url.hostname.includes('firebase') || 
+      url.hostname.includes('firestore') ||
+      url.hostname.includes('googleapis.com') ||
+      url.pathname.includes('firebase') ||
+      url.pathname.includes('firestore')) {
+    console.log('🔄 Requête Firebase (pas de cache):', url.pathname);
+    return; // Laisser passer sans interception
+  }
+
+  // Cacher les ressources statiques
+  if (url.pathname.endsWith('.js') || 
+      url.pathname.endsWith('.css') ||
+      url.pathname.endsWith('.svg') ||
+      url.pathname.endsWith('.png') ||
+      url.pathname.endsWith('.json') ||
+      url.pathname.endsWith('.woff') ||
+      url.pathname.endsWith('.woff2')) {
+    
+    event.respondWith(
+      caches.match(event.request)
+        .then(response => {
+          if (response) {
+            console.log('📦 Cache hit:', url.pathname);
+            return response;
+          }
+
+          return fetch(event.request)
+            .then(response => {
+              if (!response || response.status !== 200) {
+                return response;
+              }
+
+              const responseToCache = response.clone();
+              caches.open(CACHE_NAME)
+                .then(cache => {
+                  cache.put(event.request, responseToCache);
+                });
+
+              return response;
+            })
+            .catch(() => {
+              return caches.match(event.request);
+            });
+        })
+    );
     return;
   }
 
+  // Pour les autres requêtes (HTML, etc), network first
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        // Ne mettre en cache que les réponses valides
-        if (!response || response.status !== 200 || response.type === 'error') {
+        if (!response || response.status !== 200) {
           return response;
         }
 
-        // Cloner la réponse
         const responseToCache = response.clone();
-
         caches.open(CACHE_NAME)
           .then(cache => {
             cache.put(event.request, responseToCache);
@@ -68,7 +114,6 @@ self.addEventListener('fetch', event => {
         return response;
       })
       .catch(() => {
-        // Fallback au cache en cas d'erreur réseau
         return caches.match(event.request)
           .then(response => {
             return response || new Response('Offline - Page non disponible', {
